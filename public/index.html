@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pierre Papier Ciseaux</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Écran d'accueil -->
+    <div id="welcome-screen" class="screen active">
+        <div class="container">
+            <h1>✊ Pierre Papier Ciseaux ✋</h1>
+            <p class="subtitle">Défiez un ami en temps réel!</p>
+
+            <div class="form-group">
+                <input type="text" id="player-name" placeholder="Votre pseudo" maxlength="20">
+            </div>
+
+            <div class="buttons">
+                <button id="create-game-btn" class="btn btn-primary">Créer une partie</button>
+                <div class="divider">ou</div>
+                <div class="join-section">
+                    <input type="text" id="game-code-input" placeholder="Code de la partie" maxlength="6">
+                    <button id="join-game-btn" class="btn btn-secondary">Rejoindre</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Écran d'attente (créateur) -->
+    <div id="waiting-screen" class="screen">
+        <div class="container">
+            <h2>En attente d'un adversaire...</h2>
+            <div class="game-code-display">
+                <p>Partagez ce lien avec votre ami:</p>
+                <div class="code-box" id="display-game-code">------</div>
+                <button id="copy-code-btn" class="btn btn-small">Copier le lien</button>
+            </div>
+            <div class="loader"></div>
+        </div>
+    </div>
+
+    <!-- Écran de jeu -->
+    <div id="game-screen" class="screen">
+        <div class="game-container">
+            <div class="game-area">
+                <div class="game-header">
+                    <div class="player-info" id="player1-info">
+                        <span class="player-name">Joueur 1</span>
+                        <span class="player-score">0</span>
+                    </div>
+                    <div class="round-info">
+                        <span>Manche <span id="round-number">1</span></span>
+                    </div>
+                    <div class="player-info" id="player2-info">
+                        <span class="player-name">Joueur 2</span>
+                        <span class="player-score">0</span>
+                    </div>
+                </div>
+
+                <div class="game-content">
+                    <!-- Zone de choix -->
+                    <div id="choice-area" class="choice-area">
+                        <p class="instruction">Choisissez votre arme!</p>
+                        <div class="choices">
+                            <button class="choice-btn" data-choice="pierre">
+                                <span class="icon">✊</span>
+                                <span class="label">Pierre</span>
+                            </button>
+                            <button class="choice-btn" data-choice="feuille">
+                                <span class="icon">✋</span>
+                                <span class="label">Feuille</span>
+                            </button>
+                            <button class="choice-btn" data-choice="ciseaux">
+                                <span class="icon">✌️</span>
+                                <span class="label">Ciseaux</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Zone d'attente -->
+                    <div id="waiting-choice" class="waiting-area hidden">
+                        <p>Vous avez choisi: <span id="your-choice"></span></p>
+                        <div class="loader"></div>
+                        <p>En attente de votre adversaire...</p>
+                    </div>
+
+                    <!-- Zone de résultat -->
+                    <div id="result-area" class="result-area hidden">
+                        <div class="choices-display">
+                            <div class="player-choice">
+                                <span class="player-name-display" id="p1-name">Joueur 1</span>
+                                <span class="choice-icon" id="p1-choice">✊</span>
+                            </div>
+                            <div class="vs">VS</div>
+                            <div class="player-choice">
+                                <span class="player-name-display" id="p2-name">Joueur 2</span>
+                                <span class="choice-icon" id="p2-choice">✊</span>
+                            </div>
+                        </div>
+                        <div class="result-message" id="result-message">Résultat</div>
+                        <button id="next-round-btn" class="btn btn-primary">Manche suivante</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat -->
+            <div class="chat-area">
+                <div class="chat-header">
+                    <h3>Chat</h3>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <p class="chat-welcome">Bienvenue dans le chat!</p>
+                </div>
+                <div class="chat-input">
+                    <input type="text" id="message-input" placeholder="Votre message..." maxlength="200">
+                    <button id="send-message-btn" class="btn btn-small">Envoyer</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Écran de déconnexion -->
+    <div id="disconnect-screen" class="screen">
+        <div class="container">
+            <h2>Partie terminée</h2>
+            <p>Votre adversaire s'est déconnecté.</p>
+            <button id="restart-btn" class="btn btn-primary">Nouvelle partie</button>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
