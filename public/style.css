@@ -402,17 +402,29 @@ input[type="text"]:focus {
     word-wrap: break-word;
 }
 
+/* Mes messages: DROITE, fond noir */
 .message.sent {
     background: #1a1a1a;
     color: white;
+    align-self: flex-end;
+    border-bottom-right-radius: 5px;
+}
+
+/* Messages de l'ami: GAUCHE, fond gris */
+.message.received {
+    background: #e5e5e5;
+    color: #1a1a1a;
     align-self: flex-start;
     border-bottom-left-radius: 5px;
 }
 
-.message.received {
-    background: #e0e0e0;
-    align-self: flex-end;
-    border-bottom-right-radius: 5px;
+/* Message système: CENTRÉ */
+.message.system {
+    background: transparent;
+    color: #888;
+    align-self: center;
+    font-style: italic;
+    font-size: 0.85rem;
 }
 
 .message .sender {
@@ -453,6 +465,30 @@ input[type="text"]:focus {
 /* Hidden */
 .hidden {
     display: none !important;
+}
+
+/* Overlay de reconnexion */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.overlay-content {
+    text-align: center;
+    color: white;
+}
+
+.overlay-content p {
+    margin-top: 15px;
+    font-size: 1.1rem;
 }
 
 /* Responsive */

@@ -125,8 +125,16 @@
     <div id="disconnect-screen" class="screen">
         <div class="container">
             <h2>Partie terminée</h2>
-            <p>Votre adversaire s'est déconnecté.</p>
+            <p id="disconnect-message">Votre adversaire s'est déconnecté.</p>
             <button id="restart-btn" class="btn btn-primary">Nouvelle partie</button>
+        </div>
+    </div>
+
+    <!-- Message de reconnexion -->
+    <div id="reconnecting-overlay" class="overlay hidden">
+        <div class="overlay-content">
+            <div class="loader"></div>
+            <p>Reconnexion en cours...</p>
         </div>
     </div>
 

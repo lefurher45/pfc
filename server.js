@@ -15,6 +15,9 @@ const games = {};
 // Nombre de manches par partie
 const MAX_ROUNDS = 5;
 
+// Délai de déconnexion (en ms) - 10 secondes pour permettre la reconnexion
+const DISCONNECT_TIMEOUT = 10000;
+
 // Générer un code de partie
 function generateGameCode() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -22,6 +25,44 @@ function generateGameCode() {
 
 io.on('connection', (socket) => {
     console.log('Utilisateur connecté:', socket.id);
+
+    // Reconnexion à une partie existante
+    socket.on('reconnectGame', ({ gameCode, playerName }) => {
+        const game = games[gameCode];
+        if (!game) {
+            socket.emit('error', 'Partie non trouvée');
+            return;
+        }
+
+        const player = game.players.find(p => p.name === playerName);
+        if (player && player.disconnected) {
+            // Annuler le timeout de déconnexion
+            if (player.disconnectTimeout) {
+                clearTimeout(player.disconnectTimeout);
+            }
+
+            // Mettre à jour l'ID du socket
+            player.id = socket.id;
+            player.disconnected = false;
+            socket.join(gameCode);
+            socket.gameCode = gameCode;
+
+            // Informer que le joueur s'est reconnecté
+            io.to(gameCode).emit('playerReconnected', {
+                players: game.players.map(p => ({ name: p.name, score: p.score })),
+                gameCode,
+                reconnectedPlayer: playerName
+            });
+
+            // Envoyer un message système dans le chat
+            io.to(gameCode).emit('newMessage', {
+                sender: 'System',
+                message: `${playerName} s'est reconnecté.`,
+                timestamp: Date.now(),
+                isSystem: true
+            });
+        }
+    });
 
     // Créer une nouvelle partie
     socket.on('createGame', (playerName) => {
@@ -158,13 +199,44 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Déconnexion
+    // Déconnexion - avec délai pour permettre la reconnexion
     socket.on('disconnect', () => {
         if (socket.gameCode) {
             const game = games[socket.gameCode];
             if (game) {
-                io.to(socket.gameCode).emit('playerDisconnected');
-                delete games[socket.gameCode];
+                const playerId = socket.id;
+                const player = game.players.find(p => p.id === playerId);
+
+                if (player) {
+                    // Marquer le joueur comme déconnecté temporairement
+                    player.disconnected = true;
+
+                    // Informer l'autre joueur que le joueur est en cours de reconnexion
+                    socket.to(socket.gameCode).emit('playerReconnecting', {
+                        playerName: player.name
+                    });
+
+                    // Envoyer un message système dans le chat
+                    io.to(socket.gameCode).emit('newMessage', {
+                        sender: 'System',
+                        message: `${player.name} tente de se reconnecter...`,
+                        timestamp: Date.now(),
+                        isSystem: true
+                    });
+
+                    player.disconnectTimeout = setTimeout(() => {
+                        // Après le délai, vérifier si le joueur ne s'est pas reconnecté
+                        const currentGame = games[socket.gameCode];
+                        if (currentGame) {
+                            const currentPlayer = currentGame.players.find(p => p.id === playerId);
+                            if (currentPlayer && currentPlayer.disconnected) {
+                                // Le joueur ne s'est pas reconnecté, fin de partie
+                                io.to(socket.gameCode).emit('playerDisconnected');
+                                delete games[socket.gameCode];
+                            }
+                        }
+                    }, DISCONNECT_TIMEOUT);
+                }
             }
         }
     });

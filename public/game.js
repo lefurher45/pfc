@@ -36,15 +36,31 @@ const elements = {
     chatMessages: document.getElementById('chat-messages'),
     messageInput: document.getElementById('message-input'),
     sendMessageBtn: document.getElementById('send-message-btn'),
-    restartBtn: document.getElementById('restart-btn')
+    restartBtn: document.getElementById('restart-btn'),
+    disconnectMessage: document.getElementById('disconnect-message'),
+    reconnectingOverlay: document.getElementById('reconnecting-overlay')
 };
 
 // État du jeu
 let gameState = {
     gameCode: null,
     playerName: null,
-    myChoice: null
+    myChoice: null,
+    opponentName: null
 };
+
+// Vérifier s'il y a une partie sauvegardée pour reconnexion
+let savedGameData = null;
+const savedGameStr = localStorage.getItem('currentGame');
+if (savedGameStr) {
+    try {
+        savedGameData = JSON.parse(savedGameStr);
+        gameState.gameCode = savedGameData.gameCode;
+        gameState.playerName = savedGameData.playerName;
+    } catch (e) {
+        localStorage.removeItem('currentGame');
+    }
+}
 
 // Icônes pour les choix
 const choiceIcons = {
@@ -99,6 +115,9 @@ elements.joinGameBtn.addEventListener('click', () => {
 socket.on('gameCreated', ({ gameCode, playerName }) => {
     gameState.gameCode = gameCode;
 
+    // Sauvegarder pour la reconnexion
+    localStorage.setItem('currentGame', JSON.stringify({ gameCode, playerName }));
+
     // Générer le lien complet
     const gameLink = `${window.location.origin}?game=${gameCode}`;
     elements.displayGameCode.textContent = gameLink;
@@ -107,10 +126,53 @@ socket.on('gameCreated', ({ gameCode, playerName }) => {
 });
 
 socket.on('gameJoined', ({ players, gameCode }) => {
-    elements.player1Info.querySelector('.player-name').textContent = players[0].name;
-    elements.player2Info.querySelector('.player-name').textContent = players[1].name;
+    // Sauvegarder pour la reconnexion
+    localStorage.setItem('currentGame', JSON.stringify({ gameCode, playerName: gameState.playerName }));
+
+    // Trouver mon index et celui de l'adversaire
+    const myIndex = players.findIndex(p => p.name === gameState.playerName);
+    const opponentIndex = myIndex === 0 ? 1 : 0;
+
+    // Moi à gauche (mon nom), adversaire à droite
+    elements.player1Info.querySelector('.player-name').textContent = players[myIndex].name;
+    elements.player2Info.querySelector('.player-name').textContent = players[opponentIndex].name;
+
+    // Sauvegarder le nom de l'adversaire
+    gameState.opponentName = players[opponentIndex].name;
+
     showScreen('game');
 });
+
+// Reconnexion
+socket.on('playerReconnected', ({ players, gameCode }) => {
+    // Masquer l'overlay de reconnexion
+    elements.reconnectingOverlay.classList.add('hidden');
+
+    // Réinitialiser l'interface
+    const myIndex = players.findIndex(p => p.name === gameState.playerName);
+    const opponentIndex = myIndex === 0 ? 1 : 0;
+
+    elements.player1Info.querySelector('.player-name').textContent = players[myIndex].name;
+    elements.player2Info.querySelector('.player-name').textContent = players[opponentIndex].name;
+    elements.player1Info.querySelector('.player-score').textContent = players[myIndex].score;
+    elements.player2Info.querySelector('.player-score').textContent = players[opponentIndex].score;
+
+    gameState.opponentName = players[opponentIndex].name;
+
+    // Masquer l'écran de déconnexion et afficher le jeu
+    showScreen('game');
+});
+
+// Un joueur est en train de se reconnecter
+socket.on('playerReconnecting', ({ playerName }) => {
+    // Afficher un message temporaire
+    elements.disconnectMessage.textContent = `${playerName} tente de se reconnecter...`;
+});
+
+// Tenter de se reconnecter si une partie existe
+if (savedGameData && gameCodeFromUrl === savedGameData.gameCode) {
+    socket.emit('reconnectGame', savedGameData);
+}
 
 socket.on('error', (message) => {
     showError(message);
@@ -147,17 +209,23 @@ document.querySelectorAll('.choice-btn').forEach(btn => {
 
 // Recevoir les résultats
 socket.on('roundResult', ({ choices, winner, scores, round, isGameEnd }) => {
-    const [p1, p2] = choices;
+    // Trouver mon choix et celui de l'adversaire
+    const myChoiceData = choices.find(c => c.name === gameState.playerName);
+    const opponentChoiceData = choices.find(c => c.name !== gameState.playerName);
 
-    // Mettre à jour les noms et choix
-    elements.p1Name.textContent = p1.name;
-    elements.p2Name.textContent = p2.name;
-    elements.p1Choice.textContent = choiceIcons[p1.choice];
-    elements.p2Choice.textContent = choiceIcons[p2.choice];
+    // Moi à gauche, adversaire à droite
+    elements.p1Name.textContent = myChoiceData.name;
+    elements.p2Name.textContent = opponentChoiceData.name;
+    elements.p1Choice.textContent = choiceIcons[myChoiceData.choice];
+    elements.p2Choice.textContent = choiceIcons[opponentChoiceData.choice];
+
+    // Trouver mes scores et ceux de l'adversaire
+    const myScore = scores.find(s => s.name === gameState.playerName);
+    const opponentScore = scores.find(s => s.name !== gameState.playerName);
 
     // Mettre à jour les scores
-    elements.player1Info.querySelector('.player-score').textContent = scores[0].score;
-    elements.player2Info.querySelector('.player-score').textContent = scores[1].score;
+    elements.player1Info.querySelector('.player-score').textContent = myScore.score;
+    elements.player2Info.querySelector('.player-score').textContent = opponentScore.score;
 
     // Déterminer le message de résultat
     let message = '';
@@ -198,6 +266,9 @@ socket.on('roundResult', ({ choices, winner, scores, round, isGameEnd }) => {
             resultClass = 'draw';
         }
 
+        // Nettoyer le localStorage à la fin de la partie
+        localStorage.removeItem('currentGame');
+
         elements.nextRoundBtn.textContent = 'Nouvelle partie';
         elements.nextRoundBtn.onclick = () => {
             socket.emit('restartGame', gameState.gameCode);
@@ -226,7 +297,13 @@ socket.on('startNewRound', ({ round }) => {
 });
 
 socket.on('gameRestarted', ({ players }) => {
-    // Réinitialiser l'interface
+    // Trouver mon index et celui de l'adversaire
+    const myIndex = players.findIndex(p => p.name === gameState.playerName);
+    const opponentIndex = myIndex === 0 ? 1 : 0;
+
+    // Réinitialiser l'interface - moi à gauche, adversaire à droite
+    elements.player1Info.querySelector('.player-name').textContent = players[myIndex].name;
+    elements.player2Info.querySelector('.player-name').textContent = players[opponentIndex].name;
     elements.roundNumber.textContent = '1';
     elements.player1Info.querySelector('.player-score').textContent = '0';
     elements.player2Info.querySelector('.player-score').textContent = '0';
@@ -258,15 +335,22 @@ elements.messageInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendMessage();
 });
 
-socket.on('newMessage', ({ sender, message }) => {
+socket.on('newMessage', ({ sender, message, isSystem }) => {
     const messageDiv = document.createElement('div');
-    const isMe = sender === gameState.playerName;
 
-    messageDiv.className = `message ${isMe ? 'sent' : 'received'}`;
-    messageDiv.innerHTML = `
-        ${!isMe ? `<div class="sender">${sender}</div>` : ''}
-        <div class="text">${escapeHtml(message)}</div>
-    `;
+    if (isSystem) {
+        // Message système (centré)
+        messageDiv.className = 'message system';
+        messageDiv.innerHTML = `<div class="text">${escapeHtml(message)}</div>`;
+    } else {
+        // Message normal
+        const isMe = sender === gameState.playerName;
+        messageDiv.className = `message ${isMe ? 'sent' : 'received'}`;
+        messageDiv.innerHTML = `
+            ${!isMe ? `<div class="sender">${sender}</div>` : ''}
+            <div class="text">${escapeHtml(message)}</div>
+        `;
+    }
 
     elements.chatMessages.appendChild(messageDiv);
     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
@@ -288,12 +372,37 @@ elements.copyCodeBtn.addEventListener('click', () => {
     }, 2000);
 });
 
-// Déconnexion
+// Déconnexion de l'adversaire
 socket.on('playerDisconnected', () => {
+    // Nettoyer le localStorage
+    localStorage.removeItem('currentGame');
+    elements.disconnectMessage.textContent = 'Votre adversaire s\'est déconnecté.';
     showScreen('disconnect');
 });
 
+// Déconnexion du serveur
+socket.on('disconnect', () => {
+    // Afficher l'overlay de reconnexion si on est en jeu
+    if (gameState.gameCode && gameState.playerName) {
+        elements.reconnectingOverlay.classList.remove('hidden');
+    }
+});
+
+socket.on('connect', () => {
+    // Masquer l'overlay de reconnexion
+    elements.reconnectingOverlay.classList.add('hidden');
+
+    // Si on a une partie en cours, tenter de se reconnecter
+    if (gameState.gameCode && gameState.playerName) {
+        socket.emit('reconnectGame', {
+            gameCode: gameState.gameCode,
+            playerName: gameState.playerName
+        });
+    }
+});
+
 elements.restartBtn.addEventListener('click', () => {
+    localStorage.removeItem('currentGame');
     location.reload();
 });
 
